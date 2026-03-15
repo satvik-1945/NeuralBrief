@@ -1,4 +1,4 @@
-from app.config import YOUTUBE_CHANNELS
+from app.config import SCRAPE_WINDOW_HOURS, YOUTUBE_CHANNELS
 from app.database import (
     ArticleRecord,
     ArticleRepository,
@@ -8,9 +8,10 @@ from app.database import (
 )
 from app.scraper.allure import AllureScraper
 from app.scraper.youtube import YouTubeScraper
+from app.services import send_newsletter
 
 
-def run_ingestion(hours: int = 24) -> None:
+def run_ingestion(hours: int) -> None:
     init_db()
     db = SessionLocal()
 
@@ -29,7 +30,10 @@ def run_ingestion(hours: int = 24) -> None:
 
 
 def main():
-    run_ingestion(hours=48)
+    # 1) Scrape new content into the database
+    run_ingestion(hours=SCRAPE_WINDOW_HOURS)
+    # 2) Build and send the newsletter from the last window
+    send_newsletter(hours=SCRAPE_WINDOW_HOURS)
 
 
 if __name__ == "__main__":
