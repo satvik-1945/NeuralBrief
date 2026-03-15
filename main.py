@@ -5,7 +5,18 @@ from app.database import SessionLocal, YouTubeRepository, ArticleRepository, ini
 from app.scraper.allure import AllureScraper
 from app.scraper.youtube import YouTubeScraper
 from app.services import process_curator, process_digests, process_email
+import os
+from dotenv import load_dotenv
 
+
+def check_env():
+    required = ["DATABASE_URL", "OPENAI_API_KEY", "SMTP_PASSWORD", "SMTP_USERNAME", "NEWSLETTER_FROM_EMAIL", "NEWSLETTER_TO_EMAIL"]
+    missing = [reg for reg in required if not os.getenv(reg)]
+    
+    if missing:
+        raise ImportError(f"❌ Missing required .env variables: {', '.join(missing)}")
+load_dotenv() 
+check_env()  
 
 def run_ingestion(hours: int) -> None:
     init_db()
@@ -42,6 +53,7 @@ def main():
     process_email(
         digest_items=digest_items,
         curated_ids=curated_ids,
+        to_email=os.getenv("NEWSLETTER_TO_EMAIL")
     )
 
 
