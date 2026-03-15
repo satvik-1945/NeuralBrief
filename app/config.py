@@ -18,3 +18,6 @@ SMTP_PASSWORD = os.getenv("SMTP_PASSWORD", "")
 NEWSLETTER_FROM_EMAIL = os.getenv("NEWSLETTER_FROM_EMAIL", SMTP_USERNAME or "no-reply@example.com")
 NEWSLETTER_TO_EMAIL = os.getenv("NEWSLETTER_TO_EMAIL", "")
 
+# OpenAI (for Curator ranking and Digest summarization)
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
+
