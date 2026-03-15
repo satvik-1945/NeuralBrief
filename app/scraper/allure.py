@@ -7,6 +7,7 @@ import feedparser
 import httpx
 from bs4 import BeautifulSoup
 from pydantic import BaseModel
+from markdownify import markdownify as md  # Lightweight converter
 
 
 class Article(BaseModel):
@@ -16,17 +17,17 @@ class Article(BaseModel):
     description: str
     section: Optional[str] = None
     categories: List[str] = []
-    content_html: Optional[str] = None
-    content_text: Optional[str] = None
+    content_markdown: Optional[str] = None # Replaced Docling output
 
 
 class AllureScraper:
     FEED_URL = "https://www.allure.com/feed/rss"
 
     def __init__(self, *, timeout: float = 10.0):
-        self.client = httpx.Client(timeout=timeout)
+        self.client = httpx.Client(timeout=timeout, follow_redirects=True)
 
     def _parse_rss(self, hours: int) -> List[Article]:
+        # feedparser handles the RSS translation
         feed = feedparser.parse(self.FEED_URL)
         if not feed.entries:
             return []
@@ -44,7 +45,6 @@ class AllureScraper:
 
             tags = getattr(entry, "tags", []) or []
             categories = [getattr(tag, "term", "").strip() for tag in tags if getattr(tag, "term", "").strip()]
-
             summary = entry.get("description") or entry.get("summary", "") or ""
 
             articles.append(
@@ -53,29 +53,10 @@ class AllureScraper:
                     url=entry.link,
                     published_at=published_at,
                     description=summary,
-                    section=None,
                     categories=categories,
                 )
             )
-
         return articles
-
-    def _extract_section(self, soup: BeautifulSoup) -> Optional[str]:
-        # Allure often has a section / category label near the top; this may need tuning.
-        # Try a few reasonable selectors and return the first non-empty text.
-        candidates = [
-            ".HeroBanners-contentTag",
-            ".ContentHeaderEyebrow-eyebrow",
-            ".ArticlePage-eyebrow",
-            "header .eyebrow",
-        ]
-        for selector in candidates:
-            el = soup.select_one(selector)
-            if el:
-                text = el.get_text(strip=True)
-                if text:
-                    return text
-        return None
 
     def _scrape_article(self, article: Article) -> Article:
         try:
@@ -86,53 +67,58 @@ class AllureScraper:
 
         soup = BeautifulSoup(resp.text, "html.parser")
 
-        # These selectors are based on current Allure layout and may need adjustments over time.
+        # Select the main content body
         body_selectors = [
             "article .body__inner-container",
             "article .ArticlePage-articleBody",
-            "article .ArticlePage-content",
-            "article .ContentList-items",  # fallback
+            ".main-content",
         ]
 
-        body = None
+        body_html = None
         for selector in body_selectors:
-            body = soup.select_one(selector)
-            if body:
+            found = soup.select_one(selector)
+            if found:
+                body_html = found
                 break
 
-        if not body:
+        if not body_html:
             return article
 
-        # Extract paragraphs and other relevant text elements
-        text_blocks: List[str] = []
-        for el in body.select("p, h2, h3, li"):
-            text = el.get_text(strip=True)
-            if text:
-                text_blocks.append(text)
+        # CONVERSION STEP: 
+        # Convert the specific HTML fragment to Markdown
+        content_md = md(
+            str(body_html), 
+            heading_style="ATX", 
+            strip=['script', 'style', 'button']
+        )
 
-        content_text = "\n\n".join(text_blocks)
-        section = article.section or self._extract_section(soup)
+        # Extract section (e.g., "Skin", "Hair")
+        section = soup.select_one(".ContentHeaderEyebrow-eyebrow")
+        section_text = section.get_text(strip=True) if section else "General"
 
         return article.model_copy(
             update={
-                "content_html": str(body),
-                "content_text": content_text or article.content_text,
-                "section": section,
+                "content_markdown": content_md.strip(),
+                "section": section_text,
             }
         )
 
     def scrape(self, hours: int = 24) -> List[Article]:
         base_articles = self._parse_rss(hours=hours)
-        result: List[Article] = []
-        for article in base_articles:
-            full_article = self._scrape_article(article)
-            result.append(full_article)
-        return result
+        return [self._scrape_article(a) for a in base_articles]
 
 
 if __name__ == "__main__":
     scraper = AllureScraper()
-    articles = scraper.scrape(hours=24)
-    for article in articles:
-        print(article.title, article.url, len(article.content_text or ""), article.section, article.categories)
-        # print(article.content_html)
+    # Grabbing articles from the last 48 hours for a wider net
+    results = scraper.scrape(hours=24)
+    
+    for art in results:
+        print(f"--- {art.title} [{art.section}] ---")
+        print(f"URL: {art.url}")
+        print(f"date {art.published_at}")
+        # Print first 200 chars of markdown to verify
+        print(f"Content Preview: {art.content_markdown if art.content_markdown else 'No content'}...")
+        print("\n")
+
+    print(len(results))
