@@ -1,6 +1,6 @@
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
-from app.config import SCRAPE_WINDOW_HOURS, YOUTUBE_CHANNELS
+from app.agent.config import SCRAPE_WINDOW_HOURS, YOUTUBE_CHANNELS
 from app.database import SessionLocal, YouTubeRepository, ArticleRepository, init_db
 from app.scraper.allure import AllureScraper
 from app.scraper.youtube import YouTubeScraper

@@ -83,6 +83,7 @@ class ArticleRepository:
         if existing:
             existing.title = article.title
             existing.description = article.description
+            existing.author = getattr(article, "author", None)
             existing.section = article.section
             existing.categories = categories_str
             existing.content_html = content_html
@@ -95,6 +96,7 @@ class ArticleRepository:
                 url=article.url,
                 title=article.title,
                 description=article.description,
+                author=getattr(article, "author", None),
                 section=article.section,
                 categories=categories_str,
                 content_html=content_html,

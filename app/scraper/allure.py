@@ -17,7 +17,8 @@ class Article(BaseModel):
     description: str
     section: Optional[str] = None
     categories: List[str] = []
-    content_markdown: Optional[str] = None 
+    content_markdown: Optional[str] = None
+    author: Optional[str] = None
 
 
 class AllureScraper:
@@ -46,6 +47,7 @@ class AllureScraper:
             tags = getattr(entry, "tags", []) or []
             categories = [getattr(tag, "term", "").strip() for tag in tags if getattr(tag, "term", "").strip()]
             summary = entry.get("description") or entry.get("summary", "") or ""
+            author = entry.get("author") or getattr(entry, "dc_creator", "") or None
 
             articles.append(
                 Article(
@@ -54,6 +56,7 @@ class AllureScraper:
                     published_at=published_at,
                     description=summary,
                     categories=categories,
+                    author=author,
                 )
             )
         return articles

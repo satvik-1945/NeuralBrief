@@ -5,7 +5,7 @@ from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from typing import List, Optional
 
-from app.config import (
+from app.agent.config import (
     NEWSLETTER_FROM_EMAIL,
     NEWSLETTER_TO_EMAIL,
     SCRAPE_WINDOW_HOURS,
@@ -36,7 +36,9 @@ class EmailAgent:
                 content_type = getattr(item, "content_type", "article")
                 badge = "📺 Video" if content_type == "video" else "📄 Article"
                 section = getattr(item, "section", "") or ""
+                author = getattr(item, "author", "") or ""
                 section_line = f"<span style='color:#888;font-size:12px'>{badge} • {section}</span>" if section else f"<span style='color:#888;font-size:12px'>{badge}</span>"
+                author_line = f"<span style='color:#666;font-size:13px'>By {author}</span><br/>" if author else ""
                 row = f"""
                 <tr>
                   <td style="padding:12px 0;border-bottom:1px solid #eee;">
@@ -44,8 +46,12 @@ class EmailAgent:
                       {item.title}
                     </a><br/>
                     {section_line}<br/>
+                    {author_line}
                     <p style="margin:8px 0 0 0;font-size:14px;line-height:1.5;color:#333;">
                       {item.summary}
+                    </p>
+                    <p style="margin:12px 0 0 0;font-size:13px;">
+                      <a href="{item.url}" style="color:#0066cc;text-decoration:none;font-weight:500;">See more →</a>
                     </p>
                   </td>
                 </tr>

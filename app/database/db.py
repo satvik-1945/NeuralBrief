@@ -55,6 +55,7 @@ class ArticleRecord(Base):
     url = Column(String(1024), nullable=False, index=True)
     title = Column(String(512), nullable=False)
     description = Column(Text, nullable=True)
+    author = Column(String(255), nullable=True)
     section = Column(String(255), nullable=True)
     categories = Column(Text, nullable=True)  # comma-separated list
     content_html = Column(Text, nullable=True)

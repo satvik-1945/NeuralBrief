@@ -5,7 +5,7 @@ from datetime import datetime, timedelta, timezone
 from typing import List, Optional, Tuple
 
 from app.agent.curator_agent import CuratorAgent, CuratorItem
-from app.config import SCRAPE_WINDOW_HOURS
+from app.agent.config import SCRAPE_WINDOW_HOURS
 from app.database import ArticleRecord, SessionLocal, YouTubeVideo
 from app.profile import DEFAULT_PROFILE
 

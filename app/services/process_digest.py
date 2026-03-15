@@ -6,7 +6,7 @@ from datetime import datetime, timedelta, timezone
 from typing import List, Optional, Tuple
 
 from app.agent.digest_agent import DigestAgent
-from app.config import SCRAPE_WINDOW_HOURS
+from app.agent.config import SCRAPE_WINDOW_HOURS, YOUTUBE_CHANNEL_NAMES
 from app.database import ArticleRecord, SessionLocal, YouTubeVideo
 from app.profile import DEFAULT_PROFILE
 
@@ -27,6 +27,7 @@ class DigestItem:
     section: Optional[str]
     source: str
     summary: str
+    author: Optional[str] = None
 
 
 def _make_summary_fallback(text: str, max_chars: int = 400) -> str:
@@ -73,10 +74,11 @@ def _fetch_content(
                             {
                                 "id": a.id,
                                 "title": a.title,
-                                "content": a.content_text or a.description or "",
+                                "content": a.content_text or a.markdown or a.description or "",
                                 "url": a.url,
                                 "section": a.section,
                                 "article_type": "article",
+                                "author": a.author,
                             }
                         )
                         order.append((ct, i))
@@ -99,6 +101,7 @@ def _fetch_content(
                                 "url": v.url,
                                 "section": None,
                                 "article_type": "video",
+                                "author": YOUTUBE_CHANNEL_NAMES.get(v.channel_id or "", "YouTube"),
                             }
                         )
                         order.append((ct, i))
@@ -118,10 +121,11 @@ def _fetch_content(
                         {
                             "id": a.id,
                             "title": a.title,
-                            "content": a.content_text or a.description or "",
+                            "content": a.content_text or a.markdown or a.description or "",
                             "url": a.url,
                             "section": a.section,
                             "article_type": "article",
+                            "author": a.author,
                         }
                     )
                     order.append(("article", a.id))
@@ -142,6 +146,7 @@ def _fetch_content(
                             "url": v.url,
                             "section": None,
                             "article_type": "video",
+                            "author": YOUTUBE_CHANNEL_NAMES.get(v.channel_id or "", "YouTube"),
                         }
                     )
                     order.append(("video", v.id))
@@ -192,6 +197,7 @@ def process_digests(
                         section=p.get("section"),
                         source="allure" if ct == "article" else "youtube",
                         summary=entry.summary,
+                        author=p.get("author"),
                     )
                 )
             elif i < len(payloads):
@@ -205,6 +211,7 @@ def process_digests(
                         section=p.get("section"),
                         source="allure" if ct == "article" else "youtube",
                         summary=_make_summary_fallback(p.get("content", "")),
+                        author=p.get("author"),
                     )
                 )
         logger.info("✓ Successfully generated %d digests", len(items))
@@ -220,6 +227,7 @@ def process_digests(
             section=p.get("section"),
             source="allure" if ct == "article" else "youtube",
             summary=_make_summary_fallback(p.get("content", "")),
+            author=p.get("author"),
         )
         for (ct, cid), p in zip(order, payloads)
     ]
