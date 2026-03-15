@@ -7,7 +7,7 @@ import feedparser
 import httpx
 from bs4 import BeautifulSoup
 from pydantic import BaseModel
-from markdownify import markdownify as md  # Lightweight converter
+from markdownify import markdownify as md  
 
 
 class Article(BaseModel):
@@ -17,7 +17,7 @@ class Article(BaseModel):
     description: str
     section: Optional[str] = None
     categories: List[str] = []
-    content_markdown: Optional[str] = None # Replaced Docling output
+    content_markdown: Optional[str] = None 
 
 
 class AllureScraper:
@@ -67,7 +67,6 @@ class AllureScraper:
 
         soup = BeautifulSoup(resp.text, "html.parser")
 
-        # Select the main content body
         body_selectors = [
             "article .body__inner-container",
             "article .ArticlePage-articleBody",
@@ -84,15 +83,12 @@ class AllureScraper:
         if not body_html:
             return article
 
-        # CONVERSION STEP: 
-        # Convert the specific HTML fragment to Markdown
         content_md = md(
             str(body_html), 
             heading_style="ATX", 
             strip=['script', 'style', 'button']
         )
 
-        # Extract section (e.g., "Skin", "Hair")
         section = soup.select_one(".ContentHeaderEyebrow-eyebrow")
         section_text = section.get_text(strip=True) if section else "General"
 
@@ -110,14 +106,12 @@ class AllureScraper:
 
 if __name__ == "__main__":
     scraper = AllureScraper()
-    # Grabbing articles from the last 48 hours for a wider net
     results = scraper.scrape(hours=24)
     
     for art in results:
         print(f"--- {art.title} [{art.section}] ---")
         print(f"URL: {art.url}")
         print(f"date {art.published_at}")
-        # Print first 200 chars of markdown to verify
         print(f"Content Preview: {art.content_markdown if art.content_markdown else 'No content'}...")
         print("\n")
 
