@@ -6,7 +6,10 @@ function getPool() {
   if (!url) {
     throw new Error("DATABASE_URL is not set");
   }
-  return new Pool({ connectionString: url });
+  return new Pool({
+    connectionString: url,
+    ssl: { rejectUnauthorized: false },
+  });
 }
 
 function isValidEmail(email: string): boolean {

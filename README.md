@@ -144,6 +144,8 @@ python -m app.services.run_curator
 Add subscribers to the `people` table (email, name, interests). If the table is empty, emails fall back to `NEWSLETTER_TO_EMAIL` with default interests.
 
 ---
+### running the pipeline (mannual)
+docker run --rm --env-file .env neuralbrief-renderer python main.py
 
 ## Customization
 
