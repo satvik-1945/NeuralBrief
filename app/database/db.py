@@ -71,6 +71,37 @@ class ArticleRecord(Base):
     )
 
 
+class Person(Base):
+    """Newsletter subscribers with profile/interests."""
+
+    __tablename__ = "people"
+    __table_args__ = (UniqueConstraint("email", name="uq_person_email"),)
+
+    id = Column(Integer, primary_key=True, index=True)
+    email = Column(String(255), nullable=False, index=True)
+    name = Column(String(255), nullable=True)
+    interests = Column(Text, nullable=True)  # JSON array or comma-separated
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+
+
+class DigestedContent(Base):
+    """Email-ready digest output from raw articles/videos."""
+
+    __tablename__ = "digested_content"
+    __table_args__ = (UniqueConstraint("source_type", "source_id", name="uq_digested_source"),)
+
+    id = Column(Integer, primary_key=True, index=True)
+    source_type = Column(String(32), nullable=False)  # "article" | "video"
+    source_id = Column(Integer, nullable=False, index=True)  # article.id or video.id
+    title = Column(String(512), nullable=False)
+    summary = Column(Text, nullable=False)
+    url = Column(String(1024), nullable=False)
+    author = Column(String(255), nullable=True)
+    section = Column(String(255), nullable=True)
+    published_at = Column(DateTime, nullable=False, index=True)
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+
+
 def init_db() -> None:
     """
     Create tables if they don't exist. Call this once at startup.
@@ -83,5 +114,7 @@ __all__ = [
     "init_db",
     "YouTubeVideo",
     "ArticleRecord",
+    "Person",
+    "DigestedContent",
 ]
 
