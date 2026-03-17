@@ -1,0 +1,64 @@
+name: neuralbrief-app
+services:
+  postgres:
+    image: postgres:17
+    container_name: neuralbrief-postgres
+    environment:
+      POSTGRES_USER: neuralbrief
+      POSTGRES_PASSWORD: neuralbrief
+      POSTGRES_DB: neuralbrief
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init.sql:/docker-entrypoint-initdb.d/01-init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U neuralbrief -d neuralbrief"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  scraper:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    container_name: neuralbrief-scraper
+    command: ["python", "-m", "app.services.run_scraper"]
+    env_file:
+      - ../.env
+    environment:
+      DATABASE_URL: postgresql://neuralbrief:neuralbrief@postgres:5432/neuralbrief
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  digest:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    container_name: neuralbrief-digest
+    command: ["python", "-m", "app.services.run_digest"]
+    env_file:
+      - ../.env
+    environment:
+      DATABASE_URL: postgresql://neuralbrief:neuralbrief@postgres:5432/neuralbrief
+    depends_on:
+      scraper:
+        condition: service_completed_successfully
+
+  curator:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    container_name: neuralbrief-curator
+    command: ["python", "-m", "app.services.run_curator"]
+    env_file:
+      - ../.env
+    environment:
+      DATABASE_URL: postgresql://neuralbrief:neuralbrief@postgres:5432/neuralbrief
+    depends_on:
+      digest:
+        condition: service_completed_successfully
+
+volumes:
+  postgres_data:

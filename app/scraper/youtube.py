@@ -1,5 +1,4 @@
 from datetime import datetime, timedelta, timezone
-from tkinter import NO
 from typing import List, Optional
 import os
 import feedparser
