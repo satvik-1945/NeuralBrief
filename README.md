@@ -175,6 +175,13 @@ Edit `app/profile.py` for default interests when a person has none. Per-person i
 ```
 NeuralBrief/
 ├── main.py                 # Orchestrator; runs full pipeline
+├── render.yaml             # Render Blueprint (Postgres + cron job)
+├── web/                    # Next.js landing page (deploy to Vercel)
+│   ├── app/
+│   │   ├── page.tsx        # Subscribe form
+│   │   └── api/subscribe/  # API route
+│   └── package.json
+├── docker/                 # Docker Compose for local dev
 ├── app/
 │   ├── agent/
 │   │   ├── config.py       # Configuration (channels, SMTP, OpenAI)
@@ -204,24 +211,23 @@ NeuralBrief/
 
 ## Deployment
 
-### Cron (scheduled runs)
+### Render + Vercel (recommended)
 
-```cron
-# Run daily at 8:00 AM
-0 8 * * * cd /path/to/NeuralBrief && .venv/bin/python main.py
-```
+Production deployment uses **Render** for the pipeline and Postgres, and **Vercel** for the landing page.
 
-### Docker (example)
+1. **Push repo** to GitHub (or GitLab/Bitbucket)
+2. **Render**: New → Blueprint → Connect repo → Select `render.yaml` → Create resources
+3. **Render**: In the cron job's Environment tab, add secrets for `OPENAI_API_KEY`, `SMTP_USERNAME`, `SMTP_PASSWORD`, `NEWSLETTER_FROM_EMAIL`, `NEWSLETTER_TO_EMAIL` (these use `sync: false` in the blueprint)
+4. **Vercel**: Import project → Set root directory to `web` → Add `DATABASE_URL` (Render Postgres **external** URL) → Deploy
+5. **Test**: Subscribe on the landing page, then trigger a manual cron run in Render to verify the pipeline
 
-```dockerfile
-FROM python:3.12-slim
-WORKDIR /app
-COPY . .
-RUN pip install -e .
-CMD ["python", "main.py"]
-```
+**Pipeline**: The cron job runs daily at 8:00 UTC (`0 8 * * *`). Change the schedule in `render.yaml` or the Render Dashboard if needed.
 
-Ensure `DATABASE_URL`, `OPENAI_API_KEY`, and SMTP vars are set as environment variables in your deployment.
+**Costs**: Render cron ~$1/month; Postgres free tier (90-day limit) or paid; Vercel free tier; OpenAI pay-per-use.
+
+### Docker (local or self-hosted)
+
+See [docker/README.md](docker/README.md) for running with Docker Compose.
 
 ---
 
