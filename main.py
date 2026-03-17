@@ -1,60 +1,51 @@
-from concurrent.futures import ThreadPoolExecutor, as_completed
+"""
+NeuralBrief pipeline orchestrator.
 
-from app.agent.config import SCRAPE_WINDOW_HOURS, YOUTUBE_CHANNELS
-from app.database import SessionLocal, YouTubeRepository, ArticleRepository, init_db
-from app.scraper.allure import AllureScraper
-from app.scraper.youtube import YouTubeScraper
-from app.services import process_curator, process_digests, process_email
+Run full pipeline: python main.py
+
+Or run services separately:
+  python -m app.services.run_scraper   # Scrape YouTube + Allure → DB
+  python -m app.services.run_digest    # Digest raw content → digested_content
+  python -m app.services.run_curator   # Curate per person, send emails
+"""
+from __future__ import annotations
+
 import os
+
 from dotenv import load_dotenv
 
+load_dotenv()
 
-def check_env():
-    required = ["DATABASE_URL", "OPENAI_API_KEY", "SMTP_PASSWORD", "SMTP_USERNAME", "NEWSLETTER_FROM_EMAIL", "NEWSLETTER_TO_EMAIL"]
-    missing = [reg for reg in required if not os.getenv(reg)]
-    
+
+def check_env() -> None:
+    required = [
+        "DATABASE_URL",
+        "OPENAI_API_KEY",
+        "SMTP_PASSWORD",
+        "SMTP_USERNAME",
+        "NEWSLETTER_FROM_EMAIL",
+    ]
+    missing = [r for r in required if not os.getenv(r)]
     if missing:
         raise ImportError(f"❌ Missing required .env variables: {', '.join(missing)}")
-load_dotenv() 
-check_env()  
-
-def run_ingestion(hours: int) -> None:
-    init_db()
-    db = SessionLocal()
-
-    youtube_repo = YouTubeRepository(db)
-    article_repo = ArticleRepository(db)
-
-    yt_scraper = YouTubeScraper()
-    allure_scraper = AllureScraper()
-
-    for channel_id in YOUTUBE_CHANNELS:
-        videos = yt_scraper.scrape_channel(channel_id, hours=hours)
-        youtube_repo.upsert_videos(channel_id, videos)
-
-    articles = allure_scraper.scrape(hours=hours)
-    article_repo.upsert_articles("allure", articles)
 
 
-def main():
+def main() -> None:
+    check_env()
+
+    from app.agent.config import SCRAPE_WINDOW_HOURS
+    from app.services.run_scraper import run_scraper
+    from app.services.run_digest import run_digest
+    from app.services.run_curator import run_curator
+
     # 1) Scrape new content into the database
-    run_ingestion(hours=SCRAPE_WINDOW_HOURS)
+    run_scraper(hours=SCRAPE_WINDOW_HOURS)
 
-    # 2) Curator and Digest run in parallel (independent services)
-    with ThreadPoolExecutor(max_workers=2) as executor:
-        future_curator = executor.submit(process_curator, SCRAPE_WINDOW_HOURS)
-        future_digest = executor.submit(
-            process_digests, curated_ids=None, hours=SCRAPE_WINDOW_HOURS
-        )
-        curated_ids = future_curator.result()
-        digest_items = future_digest.result()
+    # 2) Digest raw content → digested_content
+    run_digest(hours=SCRAPE_WINDOW_HOURS)
 
-    # 3) Email: filter digest by curated IDs, then send
-    process_email(
-        digest_items=digest_items,
-        curated_ids=curated_ids,
-        to_email=os.getenv("NEWSLETTER_TO_EMAIL")
-    )
+    # 3) Curate per person, send emails
+    run_curator()
 
 
 if __name__ == "__main__":

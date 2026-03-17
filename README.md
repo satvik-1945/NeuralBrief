@@ -32,10 +32,9 @@
 ```
 
 **Pipeline flow:**
-1. **Ingestion** → Scrape YouTube channels and Allure RSS; store in DB
-2. **Curator** (rule-based) → Select relevant articles/videos by profile interests
-3. **Digest** (OpenAI) → Generate summaries for all content in one batch
-4. **Email** → Filter by curated IDs, render HTML, send via SMTP
+1. **Scraper** → Scrape YouTube channels and Allure RSS; store raw content in DB
+2. **Digest** → Read raw content, run OpenAI summarization; write to `digested_content` table
+3. **Curator** → Read `people` and `digested_content`; curate per person by interests; send email per subscriber
 
 ---
 
@@ -124,19 +123,25 @@ python main.py
 
 This will:
 1. Scrape YouTube channels and Allure articles from the last 48 hours (or `SCRAPE_WINDOW_HOURS`)
-2. Store content in the database
-3. Curate and digest in parallel
-4. Send the newsletter to `NEWSLETTER_TO_EMAIL`
+2. Digest raw content into `digested_content` table
+3. Curate per subscriber and send personalized emails
 
 ### Run services independently
 
 ```bash
-# Curator only (returns curated IDs)
-python -m app.services.process_curator
+# Scraper only (scrape → DB)
+python -m app.services.run_scraper
 
-# Digest only (processes all content in window)
-python -m app.services.process_digest
+# Digest only (raw → digested_content)
+python -m app.services.run_digest
+
+# Curator only (curate per person, send emails)
+python -m app.services.run_curator
 ```
+
+### Subscribers
+
+Add subscribers to the `people` table (email, name, interests). If the table is empty, emails fall back to `NEWSLETTER_TO_EMAIL` with default interests.
 
 ---
 
@@ -159,17 +164,9 @@ YOUTUBE_CHANNEL_NAMES = {
 }
 ```
 
-### User profile (interests & sources)
+### User profile (default interests)
 
-Edit `app/profile.py`:
-
-```python
-DEFAULT_PROFILE = UserProfile(
-    name="Default User",
-    interests=["skin", "makeup", "hair", "wellness", "celebrities"],
-    sources=["allure", "youtube"],
-)
-```
+Edit `app/profile.py` for default interests when a person has none. Per-person interests come from the `people` table (JSON array or comma-separated).
 
 ---
 
@@ -177,24 +174,27 @@ DEFAULT_PROFILE = UserProfile(
 
 ```
 NeuralBrief/
-├── main.py                 # Entry point; runs full pipeline
+├── main.py                 # Orchestrator; runs full pipeline
 ├── app/
 │   ├── agent/
 │   │   ├── config.py       # Configuration (channels, SMTP, OpenAI)
-│   │   ├── curator_agent.py # Rule-based curation
+│   │   ├── curator_agent.py # Rule-based curation (per-person interests)
 │   │   ├── digest_agent.py # OpenAI batch summarization
 │   │   └── email_agent.py  # HTML rendering & SMTP send
 │   ├── database/
-│   │   ├── db.py           # SQLAlchemy models
+│   │   ├── db.py           # SQLAlchemy models (people, digested_content, etc.)
 │   │   └── repositories.py # DB access layer
 │   ├── scraper/
 │   │   ├── allure.py       # Allure RSS + article scraper
 │   │   └── youtube.py      # YouTube RSS + transcript fetcher
 │   ├── services/
-│   │   ├── process_curator.py
-│   │   ├── process_digest.py
-│   │   └── process_email.py
-│   └── profile.py          # User interests & sources
+│   │   ├── run_scraper.py  # Scrape → DB
+│   │   ├── run_digest.py   # Raw → digested_content
+│   │   ├── run_curator.py  # Per-person curation + email
+│   │   ├── process_curator.py  # Legacy
+│   │   ├── process_digest.py   # Legacy
+│   │   └── process_email.py   # Legacy
+│   └── profile.py          # Default interests
 ├── .env                    # Your secrets (not committed)
 ├── .env.example            # Template
 └── pyproject.toml
