@@ -44,7 +44,7 @@ export async function POST(request: NextRequest) {
 
     const pool = getPool();
     await pool.query(
-      `INSERT INTO people (email, name, interests) VALUES ($1, $2, $3)
+      `INSERT INTO people (email, name, interests, created_at) VALUES ($1, $2, $3, NOW())
        ON CONFLICT (email) DO UPDATE SET name = COALESCE(EXCLUDED.name, people.name), interests = COALESCE(EXCLUDED.interests, people.interests)`,
       [email, name || null, interestsStr]
     );
