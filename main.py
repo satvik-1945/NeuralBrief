@@ -44,7 +44,7 @@ def main() -> None:
     # 2) Digest raw content → digested_content
     run_digest(hours=SCRAPE_WINDOW_HOURS)
 
-    # 3) Curate per person, send emails
+    # 3) Curate per person, send emails + cleanup (deletes data older than RETENTION_DAYS)
     run_curator()
 
 

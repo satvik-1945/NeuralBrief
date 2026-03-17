@@ -1,6 +1,6 @@
 # NeuralBrief Docker
 
-PostgreSQL 17 + one container per service (scraper, digest, curator).
+PostgreSQL 17 + one container per service (scraper, digest, curator). Cleanup runs inside curator.
 
 ## Prerequisites
 
@@ -9,7 +9,7 @@ PostgreSQL 17 + one container per service (scraper, digest, curator).
 
 ## Usage
 
-### Full pipeline (Postgres + init + scraper → digest → curator)
+### Full pipeline (Postgres + scraper → digest → curator)
 
 ```bash
 cd /path/to/NeuralBrief
@@ -22,7 +22,7 @@ docker compose -f docker/docker-compose.yml up --build
 # Start Postgres (tables are created automatically on first init)
 docker compose -f docker/docker-compose.yml up postgres -d
 
-# Run pipeline steps
+# Run pipeline steps (curator runs cleanup after sending)
 docker compose -f docker/docker-compose.yml run --rm scraper
 docker compose -f docker/docker-compose.yml run --rm digest
 docker compose -f docker/docker-compose.yml run --rm curator

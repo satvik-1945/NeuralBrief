@@ -16,6 +16,7 @@ YOUTUBE_CHANNEL_NAMES = {
 }
 
 SCRAPE_WINDOW_HOURS = int(os.getenv("SCRAPE_WINDOW_HOURS", "48"))
+RETENTION_DAYS = int(os.getenv("RETENTION_DAYS", "3"))
 
 # SMTP configuration
 SMTP_HOST = os.getenv("SMTP_HOST", "smtp.gmail.com")

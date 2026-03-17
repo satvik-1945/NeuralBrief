@@ -1,6 +1,6 @@
 """
 Curator Service: Reads people and digested_content, curates per person, sends email per person.
-Run after digest. No DB writes; calls Email Agent per subscriber.
+Runs cleanup after sending (deletes data older than RETENTION_DAYS). No separate container needed.
 """
 from __future__ import annotations
 
@@ -132,6 +132,9 @@ def run_curator(
 
             offset += batch_size
     finally:
+        from app.services.run_cleanup import run_cleanup
+
+        run_cleanup()
         db.close()
 
 
