@@ -1,3 +1,15 @@
-from .db import SessionLocal, init_db, YouTubeVideo, ArticleRecord  # noqa: F401
-from .repositories import YouTubeRepository, ArticleRepository  # noqa: F401
+from .db import (
+    ArticleRecord,
+    DigestedContent,
+    Person,
+    SessionLocal,
+    YouTubeVideo,
+    init_db,
+)
+from .repositories import (
+    ArticleRepository,
+    DigestedContentRepository,
+    PersonRepository,
+    YouTubeRepository,
+)
 
