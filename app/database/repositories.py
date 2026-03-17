@@ -130,6 +130,16 @@ class PersonRepository:
         stmt = select(Person).order_by(Person.id)
         return list(self.db.execute(stmt).scalars().all())
 
+    def get_subscribers_batch(self, limit: int = 15, offset: int = 0) -> List[Person]:
+        """Fetch a batch of subscribers for memory-efficient processing."""
+        stmt = (
+            select(Person)
+            .order_by(Person.id)
+            .limit(limit)
+            .offset(offset)
+        )
+        return list(self.db.execute(stmt).scalars().all())
+
     def create(self, email: str, name: str | None = None, interests: str | None = None) -> Person:
         person = Person(email=email, name=name, interests=interests)
         self.db.add(person)

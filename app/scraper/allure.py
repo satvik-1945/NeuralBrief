@@ -106,6 +106,14 @@ class AllureScraper:
         base_articles = self._parse_rss(hours=hours)
         return [self._scrape_article(a) for a in base_articles]
 
+    def get_rss_entries(self, hours: int = 24) -> List[Article]:
+        """Return articles from RSS without scraping full content (for batch processing)."""
+        return self._parse_rss(hours=hours)
+
+    def scrape_articles_batch(self, articles: List[Article]) -> List[Article]:
+        """Scrape full content for a batch of articles."""
+        return [self._scrape_article(a) for a in articles]
+
 
 if __name__ == "__main__":
     scraper = AllureScraper()

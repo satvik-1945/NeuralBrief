@@ -10,6 +10,7 @@ from typing import List, Tuple
 
 from app.agent.config import NEWSLETTER_TO_EMAIL, SCRAPE_WINDOW_HOURS
 from app.agent.curator_agent import CuratorAgent, CuratorItem
+from app.agent.email_agent import EmailAgent
 from app.database import (
     DigestedContent,
     DigestedContentRepository,
@@ -64,10 +65,17 @@ def _digested_to_email_item(d: DigestedContent) -> EmailDigestItem:
     )
 
 
-def run_curator(hours: int | None = None, limit_digested: int = 100) -> None:
+CURATOR_BATCH_SIZE = 15
+
+
+def run_curator(
+    hours: int | None = None,
+    limit_digested: int = 100,
+    batch_size: int = CURATOR_BATCH_SIZE,
+) -> None:
     """
     For each subscriber: curate digested_content by their interests, send email.
-    Only includes content published within `hours` (default SCRAPE_WINDOW_HOURS) to avoid duplicates.
+    Processes people in batches of `batch_size` (default 15) to stay within 512MB RAM.
     """
     init_db()
     db = SessionLocal()
@@ -76,20 +84,21 @@ def run_curator(hours: int | None = None, limit_digested: int = 100) -> None:
         person_repo = PersonRepository(db)
         digest_repo = DigestedContentRepository(db)
 
-        people = list(person_repo.get_all_subscribers())
-        if not people and NEWSLETTER_TO_EMAIL:
-            from app.profile import DEFAULT_PROFILE
-            from types import SimpleNamespace
+        offset = 0
+        total_sent = 0
 
-            people = [
-                SimpleNamespace(
-                    email=NEWSLETTER_TO_EMAIL,
-                    interests=",".join(DEFAULT_PROFILE.interests),
-                ),
-            ]
-        if not people:
-            logger.warning("No subscribers in people table and no NEWSLETTER_TO_EMAIL fallback")
-            return
+        def get_next_batch():
+            batch = person_repo.get_subscribers_batch(limit=batch_size, offset=offset)
+            if not batch and offset == 0 and NEWSLETTER_TO_EMAIL:
+                from app.profile import DEFAULT_PROFILE
+                from types import SimpleNamespace
+                return [
+                    SimpleNamespace(
+                        email=NEWSLETTER_TO_EMAIL,
+                        interests=",".join(DEFAULT_PROFILE.interests),
+                    ),
+                ]
+            return batch
 
         window_hours = hours or SCRAPE_WINDOW_HOURS
         all_digested = digest_repo.get_recent(hours=window_hours, limit=limit_digested)
@@ -99,25 +108,29 @@ def run_curator(hours: int | None = None, limit_digested: int = 100) -> None:
 
         curator_items = [_digested_to_curator_item(d) for d in all_digested]
         agent = CuratorAgent()
+        email_agent = EmailAgent()
 
-        for person in people:
-            curated_ids = agent.curate(curator_items, interests=person.interests)
-            if not curated_ids:
-                logger.info("No curated items for %s, skipping email", person.email)
-                continue
+        while True:
+            batch = get_next_batch()
+            if not batch:
+                break
 
-            digest_items = digest_repo.get_by_source_pairs(curated_ids)
-            email_items = [_digested_to_email_item(d) for d in digest_items]
+            logger.info("Processing batch of %d subscribers (offset %d)", len(batch), offset)
 
-            from app.agent.email_agent import EmailAgent
+            for person in batch:
+                curated_ids = agent.curate(curator_items, interests=person.interests)
+                if not curated_ids:
+                    logger.info("No curated items for %s, skipping email", person.email)
+                    continue
 
-            email_agent = EmailAgent()
-            email_agent.send(email_items, to_email=person.email)
-            logger.info(
-                "Sent %d items to %s",
-                len(email_items),
-                person.email,
-            )
+                digest_items = digest_repo.get_by_source_pairs(curated_ids)
+                email_items = [_digested_to_email_item(d) for d in digest_items]
+
+                email_agent.send(email_items, to_email=person.email)
+                logger.info("Sent %d items to %s", len(email_items), person.email)
+                total_sent += 1
+
+            offset += batch_size
     finally:
         db.close()
 

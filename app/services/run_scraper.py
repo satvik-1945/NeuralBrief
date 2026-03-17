@@ -23,8 +23,17 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
-def run_scraper(hours: int | None = None) -> None:
-    """Scrape YouTube + Allure, store raw content in database."""
+SCRAPER_ARTICLE_BATCH_SIZE = 10
+
+
+def run_scraper(
+    hours: int | None = None,
+    article_batch_size: int = SCRAPER_ARTICLE_BATCH_SIZE,
+) -> None:
+    """
+    Scrape YouTube + Allure, store raw content in database.
+    YouTube: one channel at a time. Allure: articles in batches of 10.
+    """
     window_hours = hours or SCRAPE_WINDOW_HOURS
     init_db()
     db = SessionLocal()
@@ -40,9 +49,12 @@ def run_scraper(hours: int | None = None) -> None:
             youtube_repo.upsert_videos(channel_id, videos)
             logger.info("Upserted %d videos from channel %s", len(videos), channel_id)
 
-        articles = allure_scraper.scrape(hours=window_hours)
-        article_repo.upsert_articles("allure", articles)
-        logger.info("Upserted %d articles from Allure", len(articles))
+        entries = allure_scraper.get_rss_entries(hours=window_hours)
+        for i in range(0, len(entries), article_batch_size):
+            batch = entries[i : i + article_batch_size]
+            scraped = allure_scraper.scrape_articles_batch(batch)
+            article_repo.upsert_articles("allure", scraped)
+            logger.info("Upserted %d articles from Allure (batch %d-%d)", len(scraped), i + 1, i + len(scraped))
     finally:
         db.close()
 
