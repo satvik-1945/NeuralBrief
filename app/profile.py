@@ -12,6 +12,6 @@ class UserProfile:
 DEFAULT_PROFILE = UserProfile(
     name="Default User",
     interests=["skin", "makeup", "hair", "wellness", "celebrities"],
-    sources=["allure", "youtube"],
+    sources=["allure", "youtube"]
 )
 

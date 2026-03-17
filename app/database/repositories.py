@@ -1,12 +1,13 @@
 from __future__ import annotations
 
+from datetime import datetime, timedelta, timezone
 from typing import Iterable, List, Optional
 
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from app.database.db import ArticleRecord, YouTubeVideo
+from app.database.db import ArticleRecord, DigestedContent, Person, YouTubeVideo
 from app.scraper.youtube import ChannelVideo
 from app.scraper.allure import Article
 
@@ -121,8 +122,127 @@ class ArticleRepository:
         return list(self.db.execute(stmt).scalars().all())
 
 
+class PersonRepository:
+    def __init__(self, db: Session):
+        self.db = db
+
+    def get_all_subscribers(self) -> List[Person]:
+        stmt = select(Person).order_by(Person.id)
+        return list(self.db.execute(stmt).scalars().all())
+
+    def create(self, email: str, name: str | None = None, interests: str | None = None) -> Person:
+        person = Person(email=email, name=name, interests=interests)
+        self.db.add(person)
+        try:
+            self.db.commit()
+            self.db.refresh(person)
+            return person
+        except IntegrityError:
+            self.db.rollback()
+            raise
+
+
+class DigestedContentRepository:
+    def __init__(self, db: Session):
+        self.db = db
+
+    def upsert(
+        self,
+        source_type: str,
+        source_id: int,
+        title: str,
+        summary: str,
+        url: str,
+        author: str | None = None,
+        section: str | None = None,
+        published_at: datetime | None = None,
+    ) -> None:
+        existing = self.db.execute(
+            select(DigestedContent).where(
+                DigestedContent.source_type == source_type,
+                DigestedContent.source_id == source_id,
+            )
+        ).scalar_one_or_none()
+
+        if existing:
+            existing.title = title
+            existing.summary = summary
+            existing.url = url
+            existing.author = author
+            existing.section = section
+            existing.published_at = published_at or existing.published_at
+        else:
+            record = DigestedContent(
+                source_type=source_type,
+                source_id=source_id,
+                title=title,
+                summary=summary,
+                url=url,
+                author=author,
+                section=section,
+                published_at=published_at,
+            )
+            self.db.add(record)
+        try:
+            self.db.commit()
+        except IntegrityError:
+            self.db.rollback()
+
+    def get_all(self, limit: int = 100) -> List[DigestedContent]:
+        stmt = (
+            select(DigestedContent)
+            .order_by(DigestedContent.published_at.desc())
+            .limit(limit)
+        )
+        return list(self.db.execute(stmt).scalars().all())
+
+    def get_recent(self, hours: int, limit: int = 100) -> List[DigestedContent]:
+        """Fetch digested content published within the last `hours` to avoid duplicates across newsletters."""
+        since = datetime.now(timezone.utc) - timedelta(hours=hours)
+        stmt = (
+            select(DigestedContent)
+            .where(DigestedContent.published_at >= since)
+            .order_by(DigestedContent.published_at.desc())
+            .limit(limit)
+        )
+        return list(self.db.execute(stmt).scalars().all())
+
+    def get_by_ids(self, ids: List[int]) -> List[DigestedContent]:
+        if not ids:
+            return []
+        stmt = (
+            select(DigestedContent)
+            .filter(DigestedContent.id.in_(ids))
+            .order_by(DigestedContent.published_at.desc())
+        )
+        return list(self.db.execute(stmt).scalars().all())
+
+    def get_by_source_pairs(
+        self, pairs: List[tuple[str, int]]
+    ) -> List[DigestedContent]:
+        """Fetch DigestedContent by (source_type, source_id) pairs, preserving order."""
+        if not pairs:
+            return []
+        from sqlalchemy import or_
+
+        pair_set = set(pairs)
+        conditions = [
+            (DigestedContent.source_type == st) & (DigestedContent.source_id == sid)
+            for st, sid in pair_set
+        ]
+        stmt = select(DigestedContent).where(or_(*conditions))
+        results = list(self.db.execute(stmt).scalars().all())
+        order_map = {p: i for i, p in enumerate(pairs)}
+        return sorted(
+            [r for r in results if (r.source_type, r.source_id) in order_map],
+            key=lambda r: order_map[(r.source_type, r.source_id)],
+        )
+
+
 __all__ = [
     "YouTubeRepository",
     "ArticleRepository",
+    "PersonRepository",
+    "DigestedContentRepository",
 ]
 
