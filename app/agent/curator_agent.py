@@ -1,10 +1,29 @@
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass
 from datetime import datetime
 from typing import List, Tuple
 
 from app.profile import DEFAULT_PROFILE
+
+
+def _parse_interests(interests: str | List[str] | None) -> List[str]:
+    """Parse Person.interests: JSON array or comma-separated string."""
+    if interests is None:
+        return []
+    if isinstance(interests, list):
+        return [str(i).lower() for i in interests]
+    s = str(interests).strip()
+    if not s:
+        return []
+    if s.startswith("["):
+        try:
+            arr = json.loads(s)
+            return [str(i).lower() for i in arr if i]
+        except json.JSONDecodeError:
+            pass
+    return [i.strip().lower() for i in s.split(",") if i.strip()]
 
 MAX_CURATED = 20  # Slightly higher to allow mix of articles + videos
 
@@ -104,15 +123,23 @@ class CuratorAgent:
     def __init__(self, rules: CuratorRules | None = None):
         self.rules = rules or DEFAULT_RULES
 
-    def curate(self, items: List[CuratorItem]) -> List[Tuple[str, int]]:
+    def curate(
+        self,
+        items: List[CuratorItem],
+        interests: List[str] | None = None,
+    ) -> List[Tuple[str, int]]:
         """
         Select relevant content from the given list.
-        Returns [(content_type, id), ...] in order of relevance.
+        interests: Override interests (from Person.interests). If None, uses DEFAULT_PROFILE.
+        Returns [(content_type, source_id), ...] in order of relevance.
         """
         if not items:
             return []
 
-        profile_interests = [i.lower() for i in DEFAULT_PROFILE.interests]
+        profile_interests = (
+            _parse_interests(interests) if interests is not None
+            else [i.lower() for i in DEFAULT_PROFILE.interests]
+        )
         rules = CuratorRules(
             interest_keywords=profile_interests or self.rules.interest_keywords,
             boost_keywords=self.rules.boost_keywords,
