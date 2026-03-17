@@ -89,6 +89,11 @@ target/
 # Virtual environment
 .venv/
 
+# Next.js
+web/.next/
+web/node_modules/
+web/.env.local
+
 # Alembic migrations
 app/alembic/versions/*
 !app/alembic/versions/.gitkeep
